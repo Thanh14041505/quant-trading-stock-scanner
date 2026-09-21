@@ -13,6 +13,7 @@ from data.store import OHLCVStore, BENCHMARK
 from strategies.base import ScanContext, StrategyResult, ERROR, NO_DATA
 from strategies.registry import REGISTRY
 from engine.consensus import Consensus, compute_consensus
+from data.fundamentals import prefetch_fundamentals
 
 
 @dataclass
@@ -33,7 +34,7 @@ class ScanResult:
 
 def run_scan(store: OHLCVStore, symbols: List[str], sids: List[str], mode: str = "swing",
              capital: float = 100_000_000, overrides: Optional[dict] = None, patches: Optional[dict] = None,
-             avg_cost: Optional[float] = None, workers: int = 2, delay: float = 0.3,
+             avg_cost: Optional[float] = None, workers: int = 2, delay: float = 0.3, fund_budget: float = 240,
              progress: Optional[Callable[[str, int, int, str], None]] = None) -> ScanResult:
     P = lambda stage, i, n, msg="": progress(stage, i, n, msg) if progress else None   # noqa: E731
     t0 = time.time()
@@ -48,6 +49,17 @@ def run_scan(store: OHLCVStore, symbols: List[str], sids: List[str], mode: str =
                    progress=lambda i, n, s: P("fetch", i, n, s))
     out.timings["fetch"] = time.time() - t0
     out.data_stats, out.fetch_errors = dict(store.stats), dict(store.errors)
+
+    # Fundamental của S5/S6: chỉ tải TRƯỚC (song song, có giới hạn thời gian) khi nó thật sự ảnh hưởng điểm (mode Hold)
+    # hoặc khi người dùng bật patch P1. Xem data/fundamentals.py để biết vì sao.
+    ov = overrides or {}
+    fund_sids = [x for x in ("S5", "S6") if x in sids and ov.get(x, {}).get("use_fundamental", True)]
+    if fund_sids and (mode == "hold" or (patches or {}).get("fundamental_in_swing", False)):
+        t_f = time.time()
+        fs = prefetch_fundamentals([s for s in symbols if s not in store.errors], workers=min(workers, 3), delay=delay,
+                                   max_seconds=fund_budget, progress=lambda i, n, s: P("fund", i, n, s))
+        out.data_stats.update({"fund_missing": fs["missing"], "fund_timed_out": int(fs["timed_out"])})
+        out.timings["fund"] = time.time() - t_f
     out.n_symbols_ok_data = sum(1 for s in symbols if s not in store.errors)
 
     ctx = ScanContext(store=store, mode=mode, capital=capital, overrides=overrides or {},
@@ -74,8 +86,8 @@ def run_scan(store: OHLCVStore, symbols: List[str], sids: List[str], mode: str =
                                                      warnings=[f"API: {store.errors[s][:160]}"])
             else:
                 out.results[s][sid] = strat.run_symbol(s, prep, ctx)
-            if i % 10 == 0:
-                P("symbols", i, len(symbols), f"{sid}:{s}")
+            if i % 5 == 0:   # tiến độ tổng qua mọi strategy: k*N + i trên tổng len(sids)*N
+                P("symbols", k * len(symbols) + i, len(sids) * len(symbols), f"{sid} · {s}")
         out.timings[sid] = time.time() - t1
 
     fam = {sid: REGISTRY[sid].info.family for sid in sids}

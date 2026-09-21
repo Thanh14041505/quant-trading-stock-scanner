@@ -23,6 +23,12 @@ PATCHES = {
         label="Bỏ nến ngày hôm nay nếu thị trường chưa đóng cửa (15:00)",
         why="Tránh dùng nến chưa hoàn chỉnh. Tắt để mô phỏng đúng notebook khi chạy giữa phiên.",
     ),
+    "fundamental_in_swing": dict(
+        default=False, ids="P1", strategies="S5–S6",
+        label="Tải Fundamental (P/E, ROE…) ở mode Swing",
+        why="Ở mode Swing điểm Fundamental chỉ hiển thị (cột FA Score), không ảnh hưởng score/tín hiệu; "
+            "tải nó tốn ~1 request API/mã và làm quét rất chậm.",
+    ),
     "s3_hold_cfg": dict(
         default=True, ids="B5", strategies="S3",
         label="S3 mode Hold: bổ sung min_score_hold=6.3, min_rr_hold=3.0 (giá trị của S4)",

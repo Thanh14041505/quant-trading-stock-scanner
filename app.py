@@ -36,13 +36,16 @@ if run:
         st.error("Cần chọn ít nhất 1 strategy và 1 mã.")
     else:
         bar = st.progress(0.0, text="Đang bắt đầu…")
+        last = [0.0]
         def on_progress(stage, i, n, msg):
-            frac = {"benchmark": 0.02, "fetch": 0.05 + 0.45 * (i / max(n, 1)),
-                    "strategy": 0.5 + 0.45 * (i / max(n, 1)), "symbols": None, "done": 1.0}.get(stage)
-            text = {"benchmark": "Nạp VNINDEX…", "fetch": f"Tải dữ liệu {i}/{n} ({msg})",
-                    "strategy": f"Chạy {msg}…", "symbols": f"{msg} ({i}/{n})", "done": "Hoàn tất"}.get(stage, stage)
-            if frac is not None:
-                bar.progress(min(frac, 1.0), text=text)
+            n = max(n, 1)
+            frac = {"benchmark": 0.02, "fetch": 0.05 + 0.35 * i / n, "fund": 0.40 + 0.10 * i / n,
+                    "strategy": None, "symbols": 0.50 + 0.48 * i / n, "done": 1.0}.get(stage)
+            text = {"benchmark": "Nạp VNINDEX…", "fetch": f"Tải dữ liệu giá {i}/{n} ({msg})",
+                    "fund": f"Tải Fundamental {i}/{n} ({msg})", "strategy": f"Khởi tạo {msg}…",
+                    "symbols": f"Chạy strategy: {msg} — {i}/{n}", "done": "Hoàn tất"}.get(stage, stage)
+            last[0] = max(last[0], frac if frac is not None else last[0])   # thanh tiến độ không bao giờ lùi
+            bar.progress(min(last[0], 1.0), text=text)
         try:
             st.session_state["scan"] = run_scan(
                 store, cfg["symbols"], cfg["sids"], mode=cfg["mode"], capital=cfg["capital"],
