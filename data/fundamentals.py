@@ -14,6 +14,7 @@ Cách xử lý:
 from __future__ import annotations
 import importlib, threading, time
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError as FTimeout
+from data import ratelimit
 from typing import Callable, Dict, Iterable, Optional
 
 NEUTRAL = (5.0, "—")          # đúng giá trị notebook trả về khi không lấy được dữ liệu
@@ -50,7 +51,13 @@ def _engine():
 
 
 def _fetch(symbol: str, delay: float) -> str:
-    _put(symbol, _engine().score(symbol))
+    ratelimit.acquire()                       # dùng chung hạn mức request/phút với tải giá
+    try:
+        res = _engine().score(symbol)
+    except SystemExit:                        # vnstock ném SystemExit khi chạm rate limit -> coi như chưa có, chờ rồi đi tiếp
+        res = NEUTRAL
+        time.sleep(ratelimit.RATE_WAIT)
+    _put(symbol, res)
     if delay:
         time.sleep(delay)
     return symbol

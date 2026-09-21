@@ -8,6 +8,7 @@ WHY giữ dữ liệu "thô" (đúng như API trả về):
 """
 from __future__ import annotations
 import time
+from data import ratelimit
 from typing import Optional, Sequence
 import pandas as pd
 
@@ -40,6 +41,7 @@ class VnstockProvider:
         last_err = None
         for attempt in range(self.retries):
             for src in self.sources:
+                ratelimit.acquire()          # không vượt trần request/phút của gói API
                 try:
                     from vnstock import Quote
                     q = Quote(symbol=symbol, source=src)
@@ -52,8 +54,12 @@ class VnstockProvider:
                         df["_src"] = src
                         return df
                     last_err = RuntimeError(f"{src}: dữ liệu rỗng")
-                except Exception as e:  # noqa: BLE001 — cố ý bắt rộng: 1 nguồn lỗi -> thử nguồn khác
+                except (Exception, SystemExit) as e:  # noqa: BLE001
+                    # SystemExit: vnstock ném khi chạm rate limit (không phải Exception!) -> chờ rồi thử lại
                     last_err = e
+                    if isinstance(e, SystemExit):
+                        last_err = RuntimeError("Rate limit của vnstock — chờ rồi thử lại")
+                        time.sleep(ratelimit.RATE_WAIT)
             if attempt < self.retries - 1:
                 time.sleep(self.backoff * (2 ** attempt))
         raise ProviderError(f"{symbol}: không lấy được dữ liệu ({last_err!r})")

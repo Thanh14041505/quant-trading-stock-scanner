@@ -4,6 +4,7 @@ import hashlib
 import streamlit as st
 
 from config.legacy_flags import PATCHES
+from data import ratelimit
 from strategies.registry import REGISTRY
 
 
@@ -41,6 +42,12 @@ def render_sidebar() -> dict:
                   disabled=demo)
     key = _api_key()
     sb.caption("🔑 Key: " + ("đã có" if key else "chưa có (có thể vẫn chạy ở gói miễn phí — tuỳ giới hạn của vnstock)") if not demo else "🧪 Đang dùng dữ liệu demo")
+
+    rpm = sb.number_input("Giới hạn request/phút (theo gói API)", min_value=5, max_value=600,
+                          value=55 if key else 18, step=5, key=f"rpm_{bool(key)}", disabled=demo,
+                          help="Khách ≈ 20, Community (có API key) ≈ 60, Sponsor 180–600. Đặt thấp hơn trần một chút để an toàn. "
+                               "Chạm trần vnstock sẽ tự dừng ứng dụng (SystemExit).")
+    ratelimit.configure(rpm)
 
     sb.subheader("Chế độ")
     mode_label = sb.radio("Mode giao dịch", ["Swing T+", "Hold"], horizontal=True,

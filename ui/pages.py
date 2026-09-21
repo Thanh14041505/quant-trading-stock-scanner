@@ -16,8 +16,14 @@ SIG_COLOR = {"SB": "#166534;color:white", "B": "#86efac", "W": "#fde68a", "N": "
 LEGEND = "SB=Strong Buy · B=Buy · W=Watch · N=Không tín hiệu · R=Reduce · X=Exit · F=Bị lọc · –=Không dữ liệu · E=Lỗi"
 
 
+_FMT = {"Price": "{:.2f}", "Entry": "{:.2f}", "SL": "{:.2f}", "TP": "{:.2f}", "R:R": "{:.3f}", "Score": "{:.1f}"}
+
+
 def _style_sig(df: pd.DataFrame, cols):
-    return df.style.map(lambda v: f"background-color:{SIG_COLOR.get(v, '')}" if v in SIG_COLOR else "", subset=cols)
+    """Tô màu tín hiệu + định dạng số: giá 2 chữ số thập phân, R:R 3 chữ số, ô trống hiện —."""
+    sty = df.style.map(lambda v: f"background-color:{SIG_COLOR.get(v, '')}" if v in SIG_COLOR else "", subset=cols)
+    fmt = {k: v for k, v in _FMT.items() if k in df.columns}
+    return sty.format(fmt, na_rep="—") if fmt else sty
 
 
 def dashboard(scan: ScanResult, store, demo: bool):
@@ -62,7 +68,7 @@ def dashboard(scan: ScanResult, store, demo: bool):
     df = scanner_df(scan, store)
     top = df[df["Consensus"].isin(["ĐỒNG THUẬN MUA", "NGHIÊNG MUA"])].head(10)
     b.markdown("**Top mã nghiêng mua**")
-    b.dataframe(top[["Ticker", "Consensus", "Bull", "Families", "Score", "Lead"]] if not top.empty else pd.DataFrame(), hide_index=True, width="stretch")
+    b.dataframe(top[["Ticker", "Consensus", "Bull", "Families", "Score", "Lead"]].style.format({"Score": "{:.1f}"}) if not top.empty else pd.DataFrame(), hide_index=True, width="stretch")
     st.info("ℹ️ **Bull** = số strategy nghiêng mua / số strategy có đánh giá. **Families** = số *dòng code* (A/B/C/D) nghiêng mua — "
             "S1–S2, S3–S4, S5–S6 gần như cùng một bộ não nên chỉ nên xem là 1 phiếu.")
 
@@ -81,8 +87,9 @@ def scanner(scan: ScanResult, store):
     if minbull: v = v[v["Bull"].str.split("/").str[0].astype(int) >= minbull]
     if only_conf: v = v[v["Conflict"] != ""]
     st.caption(f"{len(v)}/{len(df)} mã · {LEGEND}")
-    st.caption("Entry/SL/TP/R:R lấy từ **strategy dẫn đầu (Lead)** = strategy nghiêng mua có điểm cao nhất; đơn vị giá theo API. "
-               "R:R của các strategy tính theo T1 hoặc T2 khác nhau (xem cột 'R:R basis').")
+    st.caption("Entry/SL/TP/R:R lấy từ **strategy dẫn đầu (Lead)**: strategy nghiêng mua (Strong Buy trước) có đủ mức giá và điểm cao nhất. "
+               "**S7\\*** = S7 không có Entry/SL/TP nên suy ra từ giá hiện tại và % gợi ý của S7. Đơn vị giá theo API. "
+               "R:R tính theo T1 hoặc T2 tuỳ notebook (xem cột 'R:R basis').")
     st.dataframe(_style_sig(v, list(scan.sids)), hide_index=True, width="stretch", height=560)
     st.download_button("⬇️ Tải CSV", v.to_csv(index=False).encode("utf-8-sig"), "scanner.csv", "text/csv")
 
@@ -127,7 +134,7 @@ def detail(scan: ScanResult, store):
                 fmt = lambda x: "—" if x is None else f"{x:,.2f}"   # noqa: E731
                 b[0].metric("Entry", fmt(r.entry)); b[1].metric("SL", fmt(r.stop_loss))
                 b[2].metric("TP1", fmt(r.take_profit)); b[3].metric("TP2", fmt(r.take_profit_2))
-                b[4].metric(f"R:R (theo {r.rr_basis or '—'})", fmt(r.risk_reward))
+                b[4].metric(f"R:R (theo {r.rr_basis or '—'})", "—" if r.risk_reward is None else f"{r.risk_reward:.3f}")
             if r.setup: st.markdown(f"**Setup:** {r.setup}")
             if r.holder_advice: st.markdown(f"**Cho người đang giữ:** {r.holder_advice}")
             x1, x2 = st.columns(2)
