@@ -6,3 +6,4 @@ scipy>=1.11
 plotly>=5.20
 pyarrow>=15,<25
 git+https://github.com/thinh-vu/vnstock.git@v4.0.4
+vnai==2.4.8
