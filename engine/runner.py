@@ -11,7 +11,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from data.store import OHLCVStore, BENCHMARK
 from strategies.base import ScanContext, StrategyResult, ERROR, NO_DATA
-from strategies.registry import REGISTRY
+from strategies.registry import REGISTRY, NOTEBOOK_SIDS
 from engine.consensus import Consensus, compute_consensus
 from data.fundamentals import prefetch_fundamentals
 
@@ -91,8 +91,10 @@ def run_scan(store: OHLCVStore, symbols: List[str], sids: List[str], mode: str =
         out.timings[sid] = time.time() - t1
 
     fam = {sid: REGISTRY[sid].info.family for sid in sids}
+    include_ai = bool((patches or {}).get("include_ai_in_consensus", False))
+    counted = set(sids) if include_ai else set(sids) & set(NOTEBOOK_SIDS)
     for s in symbols:
-        out.consensus[s] = compute_consensus(s, out.results[s], fam)
+        out.consensus[s] = compute_consensus(s, out.results[s], fam, count_sids=counted)
     out.timings["total"] = time.time() - t0
     P("done", 1, 1, "")
     return out

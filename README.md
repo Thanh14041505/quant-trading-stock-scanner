@@ -60,6 +60,30 @@ cp .streamlit/secrets.toml.example .streamlit/secrets.toml   # rồi điền key
 > ⚠️ 6/7 notebook gốc có API key **hard-code**. Nếu các file đó từng được chia sẻ/commit, hãy **thu hồi/đổi key** trước khi deploy.
 > Thư viện vnstock/vnai có thể tự lưu key vào thư mục home của máy chạy — điều này nằm ngoài app.
 
+## S8 — Claude AI Technical Read (mới)
+
+Ngoài 7 strategy trích từ notebook, app có thêm **S8**: một góc đọc kỹ thuật độc lập do trợ lý AI tự viết
+(`strategies/strategy_08.py`), dùng chỗ trống mà bạn đã thiết kế sẵn ở mục 12 của prompt gốc ("Thiết kế để sau
+này có thể thêm Strategy 8, 9…"). S8 **không trích từ notebook nào** nên không chịu ràng buộc "giữ nguyên bug".
+
+- Phương pháp: điểm 0–100 gồm Trend (30) + Momentum (25) + Dòng tiền (20) + Cấu trúc (15) + Sức mạnh so VNINDEX (10),
+  nhân theo regime VNINDEX tự tính (độc lập, không dùng lại RegimeEngine của S1–S6). Toàn bộ chỉ báo tính nhân quả
+  (không nhìn tương lai). Entry = giá hiện tại; SL = mức gần hơn giữa đáy 20 phiên và entry − 1.2×ATR14; TP = 2R
+  hoặc đỉnh 60 phiên (không có kiểu ép target ≥ 9% như một số notebook).
+- **Family "E"** — mặc định **KHÔNG được tính vào Consensus/Bull/Families** và không được dùng để tự động chọn
+  Entry/SL/TP ở Scanner, đúng tinh thần "7 trading brains độc lập". Bật **P3 · Tính S8 (AI) vào Consensus** ở
+  sidebar nếu muốn xem AI như một strategy thứ 8 đầy đủ.
+- Luôn hiển thị riêng ở tab **Chi tiết mã** (điểm con Trend/Momentum/Flow/Structure/RS, lý do, cảnh báo).
+- **⚠️ Không phải khuyến nghị đầu tư** — chỉ để đối chiếu/tham khảo bên cạnh 7 notebook gốc.
+
+## Dark mode
+
+Toggle **🌙 Dark mode** ở đầu sidebar — áp dụng ngay, không cần khởi động lại app (CSS override runtime, xem
+`ui/theme.py`). Biểu đồ giá đổi sang `plotly_dark`. **Giới hạn:** khung bảng dữ liệu tương tác (`st.dataframe`)
+dùng canvas riêng, chỉ tối được bằng một mẹo lọc màu (filter), không hoàn hảo 100% như theme gốc. Muốn dark mode
+"chuẩn" ngay từ lúc khởi động (bảng cũng tối đúng theme) — dán khối `[theme]` trong `ui/theme.py`
+(biến `DARK_CONFIG_SNIPPET`) vào `.streamlit/config.toml` (cần khởi động lại app, áp dụng cho mọi người dùng).
+
 ## Cách dùng
 
 1. Sidebar: chọn **Mode** (Swing T+ / Hold), danh sách mã, strategy, (tuỳ chọn) tham số & bản vá → **▶️ QUÉT**.
@@ -110,8 +134,8 @@ Các bản vá khác (mặc định TẮT = hành vi gốc): **B1** (Regime dùn
 python tools/verify_extraction.py --notebooks <thư_mục_notebook>            # _legacy còn khớp nguyên văn notebook?
 python tools/validate_vs_notebook.py --notebooks <thư_mục> --provider demo  # app vs chạy nguyên notebook (offline)
 python tools/validate_vs_notebook.py --notebooks <thư_mục> --provider vnstock --tickers FPT VCB HPG   # cần API key
-python tests/smoke_offline.py swing        # chạy 7 strategy trên dữ liệu giả lập
-python tests/test_app_ui.py                # chạy UI headless
+python tests/smoke_offline.py swing        # chạy 8 strategy (S1–S7 + S8) trên dữ liệu giả lập
+python tests/test_app_ui.py                # chạy UI headless (swing/hold × dark mode × include-AI)
 ```
 
 `validate_vs_notebook.py` exec **chính các cell trong .ipynb** (DataLayer/MarketDataStore gốc, chỉ thay tầng `vnstock.Quote`

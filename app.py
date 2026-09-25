@@ -14,9 +14,11 @@ st.set_page_config(page_title="7-Strategy Stock Scanner", page_icon="📈", layo
 from ui.sidebar import render_sidebar, get_store           # noqa: E402
 from ui import pages                                       # noqa: E402
 from engine.runner import run_scan                         # noqa: E402
+from ui import theme                                        # noqa: E402
 
 st.title("📈 7-Strategy Stock Scanner — thị trường Việt Nam")
 cfg = render_sidebar()
+theme.apply(cfg["dark"])
 store = get_store("demo" if cfg["demo"] else "vnstock", cfg["key_hash"], cfg["key"])
 
 if cfg["demo"]:
@@ -67,8 +69,9 @@ if scan is None:
 else:
     if st.session_state.get("scan_demo"):
         st.warning("🧪 Kết quả hiển thị đang là từ dữ liệu GIẢ LẬP.")
+    include_ai = cfg["patches"].get("include_ai_in_consensus", False)
     with tabs[0]: pages.dashboard(scan, store, cfg["demo"])
-    with tabs[1]: pages.scanner(scan, store)
-    with tabs[2]: pages.detail(scan, store)
+    with tabs[1]: pages.scanner(scan, store, include_ai)
+    with tabs[2]: pages.detail(scan, store, cfg["dark"])
     with tabs[3]: pages.matrix(scan)
     with tabs[4]: pages.audit_page(scan)

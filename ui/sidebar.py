@@ -33,6 +33,7 @@ def get_store(kind: str, key_hash: str, _key: str):
 
 def render_sidebar() -> dict:
     sb = st.sidebar
+    dark = sb.toggle("🌙 Dark mode", value=False, key="dark_mode")
     sb.title("⚙️ Cấu hình quét")
     sb.subheader("Dữ liệu")
     demo = sb.checkbox("Dùng dữ liệu GIẢ LẬP (demo, không cần API key)", value=False,
@@ -66,7 +67,10 @@ def render_sidebar() -> dict:
 
     sb.subheader("Strategy")
     sids = sb.multiselect("Chạy các strategy", list(REGISTRY), default=list(REGISTRY),
-                          format_func=lambda s: f"{s} · {REGISTRY[s].info.name}")
+                          format_func=lambda s: f"{s} · {REGISTRY[s].info.name}"
+                          + (" [AI — tham khảo]" if REGISTRY[s].info.family == "E" else ""))
+    sb.caption("**S8** là góc đọc kỹ thuật riêng của trợ lý AI (không thuộc 7 notebook gốc). "
+               "Mặc định KHÔNG tính vào Consensus — bật ở mục Bản vá bên dưới nếu muốn tính chung.")
     capital = sb.number_input("Vốn (VND) — dùng cho position sizing S1–S6", min_value=1_000_000,
                               value=100_000_000, step=10_000_000)
 
@@ -75,6 +79,10 @@ def render_sidebar() -> dict:
     patches = {}
     for k, p in PATCHES.items():
         patches[k] = sb.checkbox(f"{p['ids']} · {p['label']}", value=p["default"], help=f"{p['why']} (áp dụng: {p['strategies']})")
+    patches["include_ai_in_consensus"] = sb.checkbox(
+        "P3 · Tính S8 (AI) vào Consensus/Entry-SL-TP tự động của Scanner", value=False,
+        help="Mặc định S8 chỉ hiển thị RIÊNG (tab Chi tiết mã, cột S8) — không gộp phiếu với 7 notebook, "
+             "đúng tinh thần '7 trading brains độc lập' của yêu cầu gốc. Bật nếu bạn muốn xem AI như brain thứ 8.")
 
     overrides = {}
     with sb.expander("Tham số từng strategy (default = notebook)"):
@@ -96,5 +104,5 @@ def render_sidebar() -> dict:
     workers = sb.slider("Số luồng tải dữ liệu", 1, 6, 2, help="Tăng nếu API key cho phép; quá cao dễ bị giới hạn tốc độ.")
     delay = sb.slider("Nghỉ giữa các request (giây)", 0.0, 2.0, 0.3, 0.1)
     return dict(demo=demo, key=key, mode=mode, symbols=syms, sids=sids, capital=float(capital), patches=patches,
-                overrides=overrides, workers=workers, delay=delay,
+                overrides=overrides, workers=workers, delay=delay, dark=dark,
                 key_hash=hashlib.sha256(key.encode()).hexdigest()[:8] if key else "")

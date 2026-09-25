@@ -59,7 +59,7 @@ def dashboard(scan: ScanResult, store, demo: bool):
             row[SHORT[sig]] = int(cnt.get(sig, 0))
         rows.append(row)
     st.dataframe(pd.DataFrame(rows), hide_index=True, width="stretch")
-    st.caption(LEGEND)
+    st.caption(LEGEND + " · S8 (dòng E) là AI Technical Read — không thuộc 7 notebook, xem mục dưới để biết có được tính vào Consensus không.")
 
     st.subheader("Tóm tắt đồng thuận (Meta engine)")
     labels = pd.Series([scan.consensus[s].label for s in scan.symbols]).value_counts().rename_axis("Consensus").reset_index(name="Số mã")
@@ -73,9 +73,9 @@ def dashboard(scan: ScanResult, store, demo: bool):
             "S1–S2, S3–S4, S5–S6 gần như cùng một bộ não nên chỉ nên xem là 1 phiếu.")
 
 
-def scanner(scan: ScanResult, store):
+def scanner(scan: ScanResult, store, include_ai: bool = False):
     st.subheader("Scanner")
-    df = scanner_df(scan, store)
+    df = scanner_df(scan, store, include_ai)
     f1, f2, f3, f4 = st.columns([2, 2, 1, 1])
     q = f1.text_input("Tìm mã", "").upper().strip()
     cons = f2.multiselect("Consensus", sorted(df["Consensus"].unique()), default=[])
@@ -87,14 +87,16 @@ def scanner(scan: ScanResult, store):
     if minbull: v = v[v["Bull"].str.split("/").str[0].astype(int) >= minbull]
     if only_conf: v = v[v["Conflict"] != ""]
     st.caption(f"{len(v)}/{len(df)} mã · {LEGEND}")
+    ai_note = " · **S8** (AI) đang được tính vào Lead/Entry-SL-TP tự động." if include_ai else \
+              " · **S8** (AI) KHÔNG được dùng để chọn Entry/SL/TP tự động (bật ở sidebar nếu muốn) — vẫn xem được ở tab Chi tiết mã."
     st.caption("Entry/SL/TP/R:R lấy từ **strategy dẫn đầu (Lead)**: strategy nghiêng mua (Strong Buy trước) có đủ mức giá và điểm cao nhất. "
                "**S7\\*** = S7 không có Entry/SL/TP nên suy ra từ giá hiện tại và % gợi ý của S7. Đơn vị giá theo API. "
-               "R:R tính theo T1 hoặc T2 tuỳ notebook (xem cột 'R:R basis').")
+               "R:R tính theo T1 hoặc T2 tuỳ notebook (xem cột 'R:R basis')." + ai_note)
     st.dataframe(_style_sig(v, list(scan.sids)), hide_index=True, width="stretch", height=560)
     st.download_button("⬇️ Tải CSV", v.to_csv(index=False).encode("utf-8-sig"), "scanner.csv", "text/csv")
 
 
-def detail(scan: ScanResult, store):
+def detail(scan: ScanResult, store, dark: bool = False):
     st.subheader("Chi tiết mã")
     sym = st.selectbox("Chọn mã", scan.symbols)
     if not sym:
@@ -110,7 +112,7 @@ def detail(scan: ScanResult, store):
     for line in c.disagreement:
         st.caption(line)
     try:
-        st.plotly_chart(price_chart(store.get_raw(sym), sym), width="stretch")
+        st.plotly_chart(price_chart(store.get_raw(sym), sym, dark=dark), width="stretch")
         st.caption("MA/RSI trên biểu đồ chỉ để tham khảo — không phải input của các strategy.")
     except Exception as e:  # noqa: BLE001
         st.error(f"Không vẽ được biểu đồ: {e}")
@@ -119,7 +121,11 @@ def detail(scan: ScanResult, store):
         r = scan.results[sym][sid]
         with tab:
             info = REGISTRY[sid].info
-            st.markdown(f"**{sid} · {info.name}** (dòng {info.family}) — *{info.notebook}*")
+            if info.family == "E":
+                st.markdown(f"**{sid} · {info.name}** 🤖 — *góc đọc kỹ thuật độc lập của trợ lý AI, KHÔNG thuộc 7 notebook gốc*")
+                st.caption("Không tính vào Consensus 7-notebook theo mặc định. Chỉ tham khảo, không phải khuyến nghị đầu tư.")
+            else:
+                st.markdown(f"**{sid} · {info.name}** (dòng {info.family}) — *{info.notebook}*")
             a = st.columns(4)
             a[0].metric("Tín hiệu gốc", r.native_signal[:40] or "—")
             a[1].metric("Chuẩn hoá", r.signal)
@@ -136,6 +142,10 @@ def detail(scan: ScanResult, store):
                 b[2].metric("TP1", fmt(r.take_profit)); b[3].metric("TP2", fmt(r.take_profit_2))
                 b[4].metric(f"R:R (theo {r.rr_basis or '—'})", "—" if r.risk_reward is None else f"{r.risk_reward:.3f}")
             if r.setup: st.markdown(f"**Setup:** {r.setup}")
+            if sid == "S8" and r.extra.get("score_breakdown"):
+                bd = r.extra["score_breakdown"]
+                st.caption("Điểm con: " + " · ".join(f"{k}={v}" for k, v in bd.items()) +
+                          f" · RSI14={r.extra.get('rsi14')} · ATR%={r.extra.get('atr_pct')} · Vol/TB20={r.extra.get('vol_ratio_20d')}×")
             if r.holder_advice: st.markdown(f"**Cho người đang giữ:** {r.holder_advice}")
             x1, x2 = st.columns(2)
             with x1:

@@ -7,7 +7,7 @@ mang tính thống kê hiển thị. "Bất đồng là thông tin có giá tr�
 from __future__ import annotations
 from collections import Counter, defaultdict
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, Iterable, List, Optional
 
 from strategies.base import (StrategyResult, BULLISH, BEARISH, ACTIVE, STRONG_BUY, BUY, WATCH, NONE,
                              SHORT, REDUCE, EXIT)
@@ -31,6 +31,9 @@ class Consensus:
     agg_score: Optional[float] = None         # thống kê hiển thị (0–100), KHÔNG phải strategy
     lead: str = ""                            # strategy nghiêng mua có điểm cao nhất (nguồn Entry/SL/TP hiển thị)
     signals: Dict[str, str] = field(default_factory=dict)
+    ai_signal: Optional[str] = None            # tín hiệu S8 (Claude AI) — luôn TÁCH RIÊNG khỏi phiếu 7-notebook
+    ai_score: Optional[float] = None
+    ai_note: str = ""
 
 
 def _family_vote(sigs: List[str]) -> str:
@@ -43,10 +46,19 @@ def _family_vote(sigs: List[str]) -> str:
     return "MIXED"
 
 
-def compute_consensus(symbol: str, results: Dict[str, StrategyResult], families: Dict[str, str]) -> Consensus:
+def compute_consensus(symbol: str, results: Dict[str, StrategyResult], families: Dict[str, str],
+                      count_sids: Optional[Iterable[str]] = None) -> Consensus:
+    """count_sids: tập sid được TÍNH vào đồng thuận (mặc định = tất cả trong `results`).
+    Dùng để loại S8 (family 'E', không thuộc 7 notebook gốc) khỏi Bull/Families trừ khi người dùng bật.
+    S8 vẫn được lưu trong `signals`/`ai_signal` để hiển thị riêng — không bị ẩn, chỉ không gộp phiếu."""
     c = Consensus(symbol=symbol)
     c.signals = {sid: r.signal for sid, r in results.items()}
-    act = {sid: r for sid, r in results.items() if r.signal in ACTIVE}
+    ai = {sid: r for sid, r in results.items() if families.get(sid) == "E"}
+    if ai:
+        r = next(iter(ai.values()))
+        c.ai_signal, c.ai_score, c.ai_note = r.signal, r.score_pct, r.native_signal
+    counted = set(count_sids) if count_sids is not None else set(results)
+    act = {sid: r for sid, r in results.items() if r.signal in ACTIVE and sid in counted}
     c.n_active = len(act)
     c.n_excluded = len(results) - len(act)
     for r in act.values():

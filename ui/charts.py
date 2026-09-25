@@ -9,7 +9,7 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 
-def price_chart(raw: pd.DataFrame, symbol: str, bars: int = 180) -> go.Figure:
+def price_chart(raw: pd.DataFrame, symbol: str, bars: int = 180, dark: bool = False) -> go.Figure:
     df = raw.drop(columns=["_src"], errors="ignore").copy()
     df["time"] = pd.to_datetime(df["time"])
     df = df.sort_values("time").reset_index(drop=True)
@@ -30,5 +30,7 @@ def price_chart(raw: pd.DataFrame, symbol: str, bars: int = 180) -> go.Figure:
     for y in (30, 70):
         fig.add_hline(y=y, line_dash="dot", line_color="#94a3b8", row=3, col=1)
     fig.update_layout(height=620, margin=dict(l=10, r=10, t=30, b=10), xaxis_rangeslider_visible=False,
-                      legend=dict(orientation="h", y=1.04))
+                      legend=dict(orientation="h", y=1.04), template="plotly_dark" if dark else "plotly_white",
+                      paper_bgcolor="rgba(0,0,0,0)" if not dark else "#0e1117",
+                      plot_bgcolor="rgba(0,0,0,0)" if not dark else "#0e1117")
     return fig

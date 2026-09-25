@@ -15,7 +15,7 @@ def last_close(store, symbol) -> Optional[float]:
         return None
 
 
-def pick_levels(scan: ScanResult, symbol: str, price: Optional[float]) -> Optional[dict]:
+def pick_levels(scan: ScanResult, symbol: str, price: Optional[float], eligible: Optional[set] = None) -> Optional[dict]:
     """
     Chọn bộ Entry/SL/TP/R:R hiển thị cho một mã.
 
@@ -26,7 +26,7 @@ def pick_levels(scan: ScanResult, symbol: str, price: Optional[float]) -> Option
          Entry = giá đóng cửa gần nhất, SL/TP = giá × (1 ∓ %) theo suggested_sl_pct/tp_pct của S7,
          R:R = tp% / sl%. Được đánh dấu "S7*" để không nhầm với số liệu gốc.
     """
-    res = list(scan.results[symbol].values())
+    res = [r for sid, r in scan.results[symbol].items() if eligible is None or sid in eligible]
     full = [r for r in res if r.signal in BULLISH and None not in (r.entry, r.stop_loss, r.take_profit)]
     if full:
         b = min(full, key=lambda r: (_RANK.get(r.signal, 1), -(r.score_pct or 0), r.sid))
@@ -41,13 +41,15 @@ def pick_levels(scan: ScanResult, symbol: str, price: Optional[float]) -> Option
     return None
 
 
-def scanner_df(scan: ScanResult, store) -> pd.DataFrame:
+def scanner_df(scan: ScanResult, store, include_ai: bool = False) -> pd.DataFrame:
+    from strategies.registry import NOTEBOOK_SIDS
+    eligible = set(scan.sids) if include_ai else set(scan.sids) & set(NOTEBOOK_SIDS)
     rows = []
     for s in scan.symbols:
         c = scan.consensus[s]
         r = scan.results[s]
         price = last_close(store, s)
-        lv = pick_levels(scan, s, price) or {}
+        lv = pick_levels(scan, s, price, eligible) or {}
         row = {"Ticker": s, "Price": price}
         for sid in scan.sids:
             row[sid] = SHORT[r[sid].signal]

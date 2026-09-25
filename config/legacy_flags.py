@@ -8,6 +8,9 @@ S3 ở mode Hold sẽ crash (AttributeError) — dùng đúng giá trị mà S4 
 """
 
 PATCHES = {
+    # Lưu ý: "include_ai_in_consensus" (P3) được thêm trực tiếp trong ui/sidebar.py (không nằm trong dict này)
+    # vì nó không phải một "bản vá bug" mà là bật/tắt việc gộp S8 (Strategy AI, family E) vào đồng thuận
+    # 7-notebook — đúng tinh thần "7 trading brains độc lập" của yêu cầu gốc, S8 mặc định đứng ngoài.
     "regime_true_ma200": dict(
         default=False, ids="B1", strategies="S1–S6",
         label="Regime dùng MA200 thật (VNINDEX 400 ngày thay vì 60)",

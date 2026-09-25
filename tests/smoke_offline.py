@@ -10,7 +10,7 @@ from engine.tables import scanner_df, matrix_df
 mode = sys.argv[1] if len(sys.argv) > 1 else "swing"
 store = OHLCVStore(DemoProvider(end="2026-09-18"), use_disk=False, drop_incomplete_today=False)
 syms = ["FPT", "VCB", "HPG", "SSI", "MWG", "VNM"]
-scan = run_scan(store, syms, ["S1", "S2", "S3", "S4", "S5", "S6", "S7"], mode=mode,
+scan = run_scan(store, syms, ["S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8"], mode=mode,
                 overrides={"S5": {"use_fundamental": False}, "S6": {"use_fundamental": False}},
                 patches={"drop_incomplete_candle": False}, workers=1, delay=0)
 print("as_of:", scan.as_of, "| timings:", {k: round(v, 1) for k, v in scan.timings.items()})
