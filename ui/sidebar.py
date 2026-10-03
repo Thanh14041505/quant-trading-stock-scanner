@@ -4,6 +4,7 @@ import hashlib
 import streamlit as st
 
 from config.legacy_flags import PATCHES
+from config.shared_params import build_shared_groups, representative_default
 from data import ratelimit
 from strategies.registry import REGISTRY
 
@@ -84,19 +85,48 @@ def render_sidebar() -> dict:
         help="Mặc định S8 chỉ hiển thị RIÊNG (tab Chi tiết mã, cột S8) — không gộp phiếu với 7 notebook, "
              "đúng tinh thần '7 trading brains độc lập' của yêu cầu gốc. Bật nếu bạn muốn xem AI như brain thứ 8.")
 
-    overrides = {}
-    with sb.expander("Tham số từng strategy (default = notebook)"):
-        st.caption("Chỉ giá trị bạn ĐỔI khác default mới được áp dụng.")
+    overrides: dict = {}
+    defaults_by_sid = {sid: REGISTRY[sid].default_config() for sid in sids}
+    shared_groups = build_shared_groups(defaults_by_sid)
+
+    def _widget(label, dv, key):
+        if isinstance(dv, bool):
+            return st.checkbox(label, value=dv, key=key)
+        if isinstance(dv, int):
+            return st.number_input(label, value=int(dv), step=1, key=key)
+        return st.number_input(label, value=float(dv), format="%.4f", key=key)
+
+    with sb.expander(f"🔗 Tham số DÙNG CHUNG — sửa 1 lần, áp dụng cho mọi strategy có tham số đó ({sum(len(v) for v in shared_groups.values())} tham số)"):
+        st.caption("Đổi 1 ô ở đây = ghi đè cho TẤT CẢ strategy đang chọn có cùng tên tham số này, kể cả khi "
+                   "default gốc của chúng khác nhau (xem caption từng ô). Muốn 1 strategy giữ giá trị khác riêng — "
+                   "sửa tiếp ở mục 'Tham số riêng từng Strategy' bên dưới, nó sẽ ghi đè lại CHỈ cho strategy đó.")
+        if not shared_groups:
+            st.caption("Chưa có strategy nào đang chọn chia sẻ tham số trùng tên.")
+        for label, items in shared_groups.items():
+            with st.expander(f"{label} ({len(items)})"):
+                for name, by_sid in items:
+                    rep = representative_default(by_sid)
+                    val = _widget(name, rep, key=f"shared_{name}")
+                    applies_to = sorted(by_sid, key=lambda s: (len(s), s))
+                    diff = {s: v for s, v in by_sid.items() if v != rep}
+                    cap = f"Áp dụng: {', '.join(applies_to)}"
+                    if diff:
+                        cap += "  ·  default GỐC khác nhau: " + ", ".join(f"{s}={v}" for s, v in diff.items())
+                    st.caption(cap)
+                    if val != rep:
+                        for s in applies_to:
+                            overrides.setdefault(s, {})[name] = val
+
+    with sb.expander("Tham số riêng từng Strategy (ghi đè thêm cho 1 strategy, ưu tiên cao hơn mục dùng chung)"):
+        st.caption("Chỉ giá trị bạn ĐỔI khác default mới được áp dụng. Tham số đã sửa ở mục 'dùng chung' vẫn "
+                   "hiện ở đây (có 🔗) — sửa tiếp tại đây để ghi đè riêng cho strategy này.")
+        shared_names = {name for items in shared_groups.values() for name, _ in items}
         for sid in sids:
-            defaults = REGISTRY[sid].default_config()
+            defaults = defaults_by_sid[sid]
             with st.expander(f"{sid} · {REGISTRY[sid].info.name}"):
                 for name, dv in defaults.items():
-                    if isinstance(dv, bool):
-                        val = st.checkbox(name, value=dv, key=f"p_{sid}_{name}")
-                    elif isinstance(dv, int):
-                        val = st.number_input(name, value=int(dv), step=1, key=f"p_{sid}_{name}")
-                    else:
-                        val = st.number_input(name, value=float(dv), format="%.4f", key=f"p_{sid}_{name}")
+                    label = f"🔗 {name}" if name in shared_names else name
+                    val = _widget(label, dv, key=f"p_{sid}_{name}")
                     if val != dv:
                         overrides.setdefault(sid, {})[name] = val
 

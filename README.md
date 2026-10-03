@@ -49,6 +49,19 @@ streamlit run app.py
 
 Không có API key? Tick **"Dùng dữ liệu GIẢ LẬP"** ở sidebar để xem thử giao diện (dữ liệu tổng hợp, không phải thị trường thật).
 
+## ⚠️ vnstock/vnai đang bị PyPI quarantine (24/09/2026)
+
+Nếu bạn thấy lỗi deploy kiểu *"No matching distribution found for vnstock"*: đây là sự cố **bên ngoài**
+(PyPI tạm ẩn 2 package `vnstock` và `vnai` để rà soát bảo mật), không phải lỗi trong app. Repo này đã
+có sẵn bản vá: `requirements.txt` trỏ tới 2 file `.whl` vendored trong `vendor/` (chính là bản `vnstock
+4.0.8` / `vnai 2.6.0` đã chạy ổn định trước đó) thay vì cài từ tên gói PyPI. Chi tiết, mức độ tin cậy,
+và cách khôi phục khi PyPI gỡ quarantine: xem `vendor/README.md`.
+
+**Không** cài các package `vnstock-cli` / `vnstock-ta` / `vnstock-quant` / `vnstock-pipeline` /
+`vnstock-installer` xuất hiện trên PyPI cùng thời điểm, và không thêm `--extra-index-url` trỏ ra ngoài
+PyPI theo hướng dẫn trong mô tả của chúng — mô tả các package này chứa chỉ dẫn nhắm vào trợ lý AI để tự
+ý fetch cấu hình/cài đặt từ nguồn ngoài PyPI, chưa được kiểm chứng độc lập.
+
 ## API key (Vnstock)
 
 Không hard-code key. Thứ tự ưu tiên: ô nhập *Vnstock API Key* (password) → `st.secrets["VNSTOCK_API_KEY"]` → biến môi trường `VNSTOCK_API_KEY`.
@@ -101,9 +114,19 @@ Nhãn chuẩn hoá chỉ để hiển thị; **tín hiệu gốc của notebook 
 
 ## Cấu hình & tham số
 
-Default lấy nguyên từ notebook (dataclass `QuantConfig` của từng strategy). Sidebar → *Tham số từng strategy* tự sinh ô
-nhập cho mọi tham số số/bool; chỉ giá trị bạn đổi mới được áp dụng. Lưu ý: cùng tên tham số có thể **khác default và khác
-ngữ nghĩa** giữa các notebook (ví dụ `min_avg_val_20d`, `lookback_short`, định nghĩa RS) — xem audit mục 4–5.
+Default lấy nguyên từ notebook (dataclass `QuantConfig` của từng strategy / `SCAN_CFG` của S7 / `DEFAULTS` của S8).
+Sidebar có 2 mục:
+
+- **🔗 Tham số DÙNG CHUNG** (`config/shared_params.py`): tự động gom mọi tham số TRÙNG TÊN xuất hiện ở ≥ 2 strategy
+  đang chọn (ví dụ `vp_bins`, `lookback_short`, `lookback_long`, `min_rr`…), gom theo nhóm (Dữ liệu & thanh khoản,
+  Ichimoku & Dao Găm, Entry/Risk…). Sửa 1 ô ở đây áp dụng NGAY cho mọi strategy có tham số đó — kể cả khi default
+  gốc của chúng khác nhau (sidebar hiện rõ default gốc từng strategy để biết đang ghi đè gì). Nếu sau đó bạn còn sửa
+  tiếp ở mục dưới cho MỘT strategy cụ thể, giá trị riêng đó được ưu tiên hơn giá trị dùng chung.
+- **Tham số riêng từng Strategy**: như trước, để chỉnh tham số chỉ 1 strategy có, hoặc ghi đè riêng lẻ.
+
+⚠️ Lưu ý: cùng tên tham số có thể **khác ĐỊNH NGHĨA/đơn vị gốc** giữa các notebook (ví dụ `lookback_short` là NGÀY
+LỊCH ở S1–S4 nhưng SỐ PHIÊN ở S5–S6 — xem audit B9–B12). Gom theo tên là lựa chọn của bạn để sửa nhanh hơn; nó
+không đổi cách mỗi strategy diễn giải con số đó.
 
 Hai điểm khác notebook *có chủ đích* (đều tắt/bật được ở sidebar):
 - **L4** – bỏ nến hôm nay nếu chưa đóng cửa (15:00): tránh dùng nến chưa hoàn chỉnh (BẬT mặc định).
@@ -111,6 +134,23 @@ Hai điểm khác notebook *có chủ đích* (đều tắt/bật được ở s
 - **B6** – S3/S4: dùng hiệu lực thực của `TPlusQuantEngine` (`min_score_swing=6.2`, risk 1%).
 
 Các bản vá khác (mặc định TẮT = hành vi gốc): **B1** (Regime dùng MA200 thật), **B7** (S7: STRONG_BUY theo `strong_buy_score`).
+
+## Xuất Excel (mỗi strategy 1 sheet)
+
+Sau khi quét xong, nút **📥 Xuất Excel (mỗi strategy 1 sheet)** xuất hiện ở sidebar. File gồm:
+
+- 1 sheet **ℹ️ Tổng quan** (ngày quét, phiên dữ liệu, mode, danh sách strategy/nguồn).
+- 1 sheet cho **mỗi strategy** (S1…S8, tối đa 9 sheet), mỗi dòng = 1 mã, mỗi cột = **đúng một khoá trong output
+  GỐC** của strategy đó (với S1–S7: toàn bộ khoá trong dict mà notebook trả về, kể cả các khoá nội bộ bắt đầu
+  bằng `_`; với S8: bộ cột tương đương do không có notebook gốc để dump — xem docstring đầu
+  `engine/excel_export.py`).
+- Định dạng: header xanh đậm cố định, zebra striping, freeze cột Mã + dòng tiêu đề, autofilter, số làm tròn
+  2–3 chữ số. **Conditional formatting** dùng MỘT bộ luật chung cho mọi sheet (không tinh chỉnh tay theo từng
+  cột của từng notebook): thang màu đỏ-vàng-xanh cho cột số, data bar cho cột khối lượng/giá trị giao dịch,
+  xanh/đỏ cho cột đúng/sai (`_ok`…), và 3 luật theo icon/từ khoá (🟢✅🔥 tích cực · 🔴❌⛔ tiêu cực · 🟡👀⏳ trung
+  lập) cho cột chữ.
+- Mã bị lọc (`🚫 BỊ LỌC`) vẫn có đủ cột như bình thường (notebook vẫn tính xong rồi mới lọc); mã lỗi/thiếu dữ
+  liệu (NO_DATA/ERROR) chỉ có vài cột (Mã, Trạng thái, Ghi chú lỗi) — các ô còn lại để trống thay vì bịa số liệu.
 
 ## Deploy lên Streamlit Community Cloud
 

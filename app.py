@@ -15,6 +15,7 @@ from ui.sidebar import render_sidebar, get_store           # noqa: E402
 from ui import pages                                       # noqa: E402
 from engine.runner import run_scan                         # noqa: E402
 from ui import theme                                        # noqa: E402
+from engine.excel_export import export_bytes               # noqa: E402
 
 st.title("📈 7-Strategy Stock Scanner — thị trường Việt Nam")
 cfg = render_sidebar()
@@ -49,11 +50,20 @@ if run:
             last[0] = max(last[0], frac if frac is not None else last[0])   # thanh tiến độ không bao giờ lùi
             bar.progress(min(last[0], 1.0), text=text)
         try:
-            st.session_state["scan"] = run_scan(
+            scan_result = run_scan(
                 store, cfg["symbols"], cfg["sids"], mode=cfg["mode"], capital=cfg["capital"],
                 overrides=cfg["overrides"], patches=cfg["patches"], workers=cfg["workers"],
                 delay=cfg["delay"], progress=on_progress)
+            st.session_state["scan"] = scan_result
             st.session_state["scan_demo"] = cfg["demo"]
+            bar.progress(1.0, text="Đang tạo file Excel…")
+            try:
+                st.session_state["scan_xlsx"] = export_bytes(scan_result)
+            except Exception as e:  # noqa: BLE001 — lỗi tạo Excel không được làm mất kết quả quét vừa chạy
+                st.session_state["scan_xlsx"] = None
+                st.session_state["scan_xlsx_err"] = f"{type(e).__name__}: {e}"
+            else:
+                st.session_state.pop("scan_xlsx_err", None)
         except Exception as e:  # noqa: BLE001 — lỗi nặng (vd. không tải được VNINDEX) hiển thị rõ, không crash app
             st.error(f"Không thể hoàn tất lượt quét: {type(e).__name__}: {e}")
         bar.empty()
@@ -69,6 +79,13 @@ if scan is None:
 else:
     if st.session_state.get("scan_demo"):
         st.warning("🧪 Kết quả hiển thị đang là từ dữ liệu GIẢ LẬP.")
+    xlsx = st.session_state.get("scan_xlsx")
+    if xlsx:
+        st.sidebar.download_button(
+            "📥 Xuất Excel (mỗi strategy 1 sheet)", data=xlsx, file_name=f"scan_{scan.as_of}_{scan.mode}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", width="stretch")
+    elif st.session_state.get("scan_xlsx_err"):
+        st.sidebar.error(f"Không tạo được file Excel: {st.session_state['scan_xlsx_err']}")
     include_ai = cfg["patches"].get("include_ai_in_consensus", False)
     with tabs[0]: pages.dashboard(scan, store, cfg["demo"])
     with tabs[1]: pages.scanner(scan, store, include_ai)
