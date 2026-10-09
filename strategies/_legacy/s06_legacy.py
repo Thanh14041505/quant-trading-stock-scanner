@@ -2598,8 +2598,8 @@ class SignalBuilder:
             r.append(f"Dưới EMA20 ({raw.get('ema_pct', 0):.1f}%)")
         if raw.get("cmf", 0) < -0.20:
             r.append(f"CMF âm ({raw.get('cmf', 0):.3f})")
-        if raw.get("stoch_k", 50) > 88:
-            r.append(f"Stoch quá mua ({raw.get('stoch_k', 50):.0f})")
+        #if raw.get("stoch_k", 50) > 88:
+            #r.append(f"Stoch quá mua ({raw.get('stoch_k', 50):.0f})")
         if raw.get("ichi_below_count", 0) == 3:
             r.append("☁️ Dưới mây 3TF — downtrend mạnh")
         if mode == "hold":
