@@ -32,6 +32,12 @@ PATCHES = {
         why="Ở mode Swing điểm Fundamental chỉ hiển thị (cột FA Score), không ảnh hưởng score/tín hiệu; "
             "tải nó tốn ~1 request API/mã và làm quét rất chậm.",
     ),
+    "s3_min_rr_patch": dict(
+        default=True, ids="B18", strategies="S3",
+        label="S3: vá field min_rr còn thiếu (dùng min_rr_swing thay thế)",
+        why="QuantConfig của S3 không định nghĩa `min_rr` dù code dùng ở cả 2 mode -> AttributeError khi "
+            "1 mã vừa qua filter vừa đủ điểm (hiếm gặp ở mẫu nhỏ, phát hiện khi quét quy mô lớn). Không vá thì sập.",
+    ),
     "s3_hold_cfg": dict(
         default=True, ids="B5", strategies="S3",
         label="S3 mode Hold: bổ sung min_score_hold=6.3, min_rr_hold=3.0 (giá trị của S4)",

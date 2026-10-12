@@ -5,3 +5,6 @@ __pycache__/
 .venv/
 venv/
 notebooks/
+
+# vnai (dependency của vnstock) có thể tự tạo file này khi import/chạy — xem README mục "Lưu ý an ninh".
+AGENTS.md

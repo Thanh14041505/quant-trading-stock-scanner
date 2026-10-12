@@ -209,6 +209,7 @@ Mức độ: 🔴 ảnh hưởng tín hiệu trực tiếp · 🟠 ảnh hưởn
 | B15 | 🟡 | S1 `run_pipeline`: tính VP và fetch `df_long` hai lần, `df_override` bị bỏ qua; `sleep` hai lần/mã. S2 đã sửa. | Hiệu năng (chỉ ảnh hưởng tốc độ). | Không ảnh hưởng port. |
 | B16 | 🟠 | "Win rate" của S1–S4 là **heuristic** (`wr_base 45%` + pattern weight), còn S5/S6 dùng `win_est = 0.30 + 0.045×score`; **Kelly sizing** của cả S1–S6 phụ thuộc vào các con số này. S4 tự ghi "không phải xác suất thực nghiệm". | Sizing dựa trên số không thực nghiệm. | Gắn nhãn "ước lượng heuristic" trên UI. |
 | B17 | 🟡 | S7 gọi `globals().get("model")` — có thể bắt nhầm biến tên `model`. | Rủi ro khi port. | Trong app, `p_tp` chỉ tồn tại nếu có artifact model được nạp tường minh. |
+| B18 | 🔴 | **S3**: `run_pipeline` dùng `self.cfg.min_rr` (dòng `ok = passed and score>=min_score and rr_check>=self.cfg.min_rr`) nhưng `QuantConfig` của S3 KHÔNG định nghĩa field này (chỉ có `min_rr_swing`) -> `AttributeError`. Chỉ lộ ra khi 1 mã vừa qua filter vừa đủ điểm nên KHÔNG bị phát hiện ở mẫu nhỏ ban đầu (6 mã test) — chỉ lộ ra khi quét ≥ 60 mã. S4 (bản kế tiếp) đã sửa triệt để bằng `min_rr_swing`/`min_rr_hold` ở mọi chỗ, không còn field trần `min_rr`. | S3 crash bất kể mode khi gặp đúng mã thoả điều kiện — ảnh hưởng tới SỐ LƯỢNG MÃ QUÉT ĐƯỢC ở quy mô thật (243 mã). | Mặc định vá bằng `min_rr = min_rr_swing` (patch `s3_min_rr_patch`, BẬT sẵn — không vá thì sập, giống B5). |
 
 ### Nhóm L — Look-ahead / tính nhân quả
 

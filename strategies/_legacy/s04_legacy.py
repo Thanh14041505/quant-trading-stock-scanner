@@ -2329,7 +2329,7 @@ class SignalBuilder:
         if raw.get("cmf", 0) < -0.20:  reasons.append(f"CMF âm nặng ({raw.get('cmf',0):.3f})")
         if mode == "hold" and raw.get("trend_long") == "downtrend": reasons.append("Downtrend dài hạn")
         if mode == "hold" and raw.get("obv_signal") == -1: reasons.append("OBV suy yếu")
-        # if raw.get("stoch_k", 50) > 75: reasons.append(f"Stoch quá mua ({raw.get('stoch_k',50):.0f})")
+        if raw.get("stoch_k", 50) > 75: reasons.append(f"Stoch quá mua ({raw.get('stoch_k',50):.0f})")
 
         # ── VSA Hard Filters (v5.2) ──────────────────────────────────────────
         vsa = raw.get("vsa_signal", "—")

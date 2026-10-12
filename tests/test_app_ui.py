@@ -29,6 +29,10 @@ def run_once(mode_label: str, dark: bool, include_ai: bool):
     assert not at.exception, at.exception
     dl = [b for b in at.sidebar.download_button if "Xuất Excel" in b.label]
     assert len(dl) == 1, "Nút Xuất Excel không xuất hiện sau khi quét xong"
+    smc_cb = [c for c in at.checkbox if "SMC" in c.label]
+    if smc_cb:
+        smc_cb[0].uncheck(); at.run(); assert not at.exception, at.exception
+        [c for c in at.checkbox if "SMC" in c.label][0].check(); at.run(); assert not at.exception, at.exception
     print(f"[{mode_label} dark={dark} ai={include_ai}] tabs:{len(at.tabs)} df:{len(at.dataframe)} "
          f"err:{len(at.error)} warn:{len(at.warning)} download_btn:{len(dl)}")
     for e in at.error:

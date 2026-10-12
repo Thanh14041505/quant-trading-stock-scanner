@@ -16,6 +16,12 @@ WHY cần `_ok`: ở S3/S4 verdict chỉ dựa trên điểm; R:R gate và min_s
 B6 (TPlusQuantEngine): hiệu lực THỰC của bản gốc là min_score_swing=6.2 và risk 1% (0.8% không tới PositionSizer),
 nên cfg_defaults chỉ đặt min_score_swing=6.2 — khớp hành vi thực tế của notebook.
 B5: S3 gốc thiếu min_score_hold/min_rr_hold -> mode Hold bị AttributeError; mặc định bổ sung giá trị của S4 (bật/tắt trong UI).
+B18 (phát hiện mới khi test ở quy mô lớn — không có trong audit ban đầu vì mẫu nhỏ ban đầu không trúng case
+này): dòng `ok = passed and score>=min_score and rr_check>=self.cfg.min_rr` trong `run_pipeline` dùng
+`self.cfg.min_rr`, nhưng `QuantConfig` của S3 KHÔNG hề định nghĩa field này (chỉ có `min_rr_swing`) ->
+AttributeError bất kể mode, chỉ lộ ra khi 1 mã vừa qua filter vừa đủ điểm (nên hiếm gặp ở mẫu nhỏ). S4 (bản
+kế tiếp) đã sửa triệt để bằng cách dùng hẳn `min_rr_swing`/`min_rr_hold` tại mọi chỗ, không còn field trần
+`min_rr`. Mặc định BẬT vá (set `min_rr = min_rr_swing`) vì không vá thì sập, giống tinh thần B5.
 """
 from __future__ import annotations
 from .base import StrategyInfo, StrategyResult, STRONG_BUY, BUY, WATCH, NONE, FILTERED
@@ -75,6 +81,10 @@ class Strategy03(LegacyEngineStrategy):
     cfg_defaults = {"min_score_swing": 6.2}          # B6 — xem docstring
 
     def before_engine(self, mod, cfg, ctx):
+        # B18: self.cfg.min_rr được code dùng ở CẢ 2 mode nhưng QuantConfig của S3 không định nghĩa field
+        # này -> vá bằng min_rr_swing (field R:R duy nhất cùng ngữ nghĩa có sẵn trong chính QuantConfig).
+        if ctx.patches.get("s3_min_rr_patch", True) and not hasattr(cfg, "min_rr"):
+            cfg.min_rr = cfg.min_rr_swing
         if ctx.mode == "hold" and ctx.patches.get("s3_hold_cfg", True):
             for k, v in (("min_score_hold", 6.3), ("min_rr_hold", 3.0)):      # B5: giá trị của S4
                 if not hasattr(cfg, k):

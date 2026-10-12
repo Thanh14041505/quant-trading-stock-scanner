@@ -10,6 +10,8 @@ from strategies.base import SHORT, BULLISH
 from strategies.registry import REGISTRY
 from config.legacy_flags import PATCHES
 from ui.charts import price_chart
+from strategies import smc as smc_engine
+from strategies.strategy_09 import Strategy09
 
 SIG_COLOR = {"SB": "#166534;color:white", "B": "#86efac", "W": "#fde68a", "N": "#e5e7eb", "R": "#fdba74",
              "X": "#fca5a5", "F": "#cbd5e1", "–": "#f1f5f9", "E": "#f87171;color:white", "U": "#f1f5f9"}
@@ -111,9 +113,26 @@ def detail(scan: ScanResult, store, dark: bool = False):
         st.warning("⚡ Bất đồng: " + c.conflict)
     for line in c.disagreement:
         st.caption(line)
+    show_smc = False
+    if "S9" in scan.sids:
+        show_smc = st.checkbox("🧭 Hiện cấu trúc SMC (swing/BOS-CHoCH/Order Block/FVG/Liquidity) trên biểu đồ",
+                               value=True, key=f"smc_overlay_{sym}")
     try:
-        st.plotly_chart(price_chart(store.get_raw(sym), sym, dark=dark), width="stretch")
-        st.caption("MA/RSI trên biểu đồ chỉ để tham khảo — không phải input của các strategy.")
+        smc_res = None
+        if show_smc:
+            raw = store.get_raw(sym).drop(columns=["_src"], errors="ignore")
+            raw["time"] = pd.to_datetime(raw["time"])
+            raw = raw.sort_values("time").reset_index(drop=True)
+            d = Strategy09.DEFAULTS
+            smc_res = smc_engine.analyze(raw, left=d["entry_swing_left"], right=d["entry_swing_right"],
+                                         min_swing_atr=d["entry_min_swing_atr"], liq_tol_atr=d["liq_tol_atr"])
+        st.plotly_chart(price_chart(store.get_raw(sym), sym, dark=dark, smc_result=smc_res), width="stretch")
+        cap = "MA/RSI trên biểu đồ chỉ để tham khảo — không phải input của các strategy."
+        if show_smc:
+            cap += (" Cấu trúc SMC vẽ theo tham số MẶC ĐỊNH của S9 (xanh=OB/Liquidity mua, đỏ=OB/Liquidity bán, "
+                   "tím nhạt=FVG tăng, cam nhạt=FVG giảm, nét đứt dọc=BOS xanh/CHoCH đỏ); nếu bạn đã chỉnh tham số "
+                   "S9 ở sidebar, cấu trúc thực dùng để tính tín hiệu có thể khác chút so với hình vẽ.")
+        st.caption(cap)
     except Exception as e:  # noqa: BLE001
         st.error(f"Không vẽ được biểu đồ: {e}")
     tabs = st.tabs([f"{sid} {SHORT[scan.results[sym][sid].signal]}" for sid in scan.sids])
@@ -146,6 +165,15 @@ def detail(scan: ScanResult, store, dark: bool = False):
                 bd = r.extra["score_breakdown"]
                 st.caption("Điểm con: " + " · ".join(f"{k}={v}" for k, v in bd.items()) +
                           f" · RSI14={r.extra.get('rsi14')} · ATR%={r.extra.get('atr_pct')} · Vol/TB20={r.extra.get('vol_ratio_20d')}×")
+            if sid == "S9" and r.status == "OK":
+                x = r.extra
+                zc = {"up": "📈", "down": "📉", "ranging": "↔️"}.get(x.get("trend"), "")
+                st.caption(f"{zc} Trend: **{x.get('trend')}** · Zone: **{x.get('zone')}**"
+                          + (f" ({x.get('zone_pct')*100:.0f}% range {x.get('range_low'):.1f}-{x.get('range_high'):.1f})" if x.get('zone_pct') is not None else "")
+                          + f" · Sự kiện gần nhất: **{x.get('last_event') or '—'}** ({x.get('last_event_date') or '—'})"
+                          + f" · OB chưa test: {x.get('n_order_blocks_unmitigated')} · FVG chưa lấp: {x.get('n_fvg_open')} · Liquidity pool: {x.get('n_liquidity_pools')}")
+                if x.get("swept_before_choch"):
+                    st.caption("🎯 Có liquidity sweep ngay trước sự kiện cấu trúc gần nhất — mẫu hình tin cậy hơn.")
             if r.holder_advice: st.markdown(f"**Cho người đang giữ:** {r.holder_advice}")
             x1, x2 = st.columns(2)
             with x1:

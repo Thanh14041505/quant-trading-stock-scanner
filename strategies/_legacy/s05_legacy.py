@@ -2421,7 +2421,7 @@ class SignalBuilder:
         elif rsi > 75 and mode == "swing": r.append(f"RSI cao T+ ({rsi:.0f})")
         if raw.get("ema_pct",0) < -9: r.append(f"Dưới EMA20 ({raw.get('ema_pct',0):.1f}%)")
         if raw.get("cmf",0) < -0.20: r.append(f"CMF âm ({raw.get('cmf',0):.3f})")
-        # if raw.get("stoch_k",50) > 88: r.append(f"Stoch quá mua ({raw.get('stoch_k',50):.0f})")
+        if raw.get("stoch_k",50) > 88: r.append(f"Stoch quá mua ({raw.get('stoch_k',50):.0f})")
         if raw.get("ichi_below_count",0) == 3: r.append("☁️ Dưới mây 3TF — downtrend mạnh")
         if mode == "hold":
             if raw.get("trend_long") in ("downtrend","weak_down"): r.append("Downtrend dài hạn")

@@ -49,18 +49,28 @@ streamlit run app.py
 
 Không có API key? Tick **"Dùng dữ liệu GIẢ LẬP"** ở sidebar để xem thử giao diện (dữ liệu tổng hợp, không phải thị trường thật).
 
-## ⚠️ vnstock/vnai đang bị PyPI quarantine (24/09/2026)
+## ⚠️ vnstock/vnai đang bị PyPI quarantine (từ 24/09/2026) + lưu ý an ninh
 
-Nếu bạn thấy lỗi deploy kiểu *"No matching distribution found for vnstock"*: đây là sự cố **bên ngoài**
-(PyPI tạm ẩn 2 package `vnstock` và `vnai` để rà soát bảo mật), không phải lỗi trong app. Repo này đã
-có sẵn bản vá: `requirements.txt` trỏ tới 2 file `.whl` vendored trong `vendor/` (chính là bản `vnstock
-4.0.8` / `vnai 2.6.0` đã chạy ổn định trước đó) thay vì cài từ tên gói PyPI. Chi tiết, mức độ tin cậy,
-và cách khôi phục khi PyPI gỡ quarantine: xem `vendor/README.md`.
+PyPI tạm ẩn 2 package `vnstock` và `vnai` để rà soát bảo mật (`pip install vnstock` báo "No matching
+distribution found" dù ghim version nào). `requirements.txt` của repo này cài thay thế trực tiếp từ
+nguồn ngoài PyPI (đã xác nhận chạy được trên Streamlit Cloud):
+
+```
+https://files.pythonhosted.org/packages/1f/34/7f419ef6661009006fbc149f4fca26159b7f56d9836b6cb9c170c3c0c465/vnai-2.6.1-py3-none-any.whl
+git+https://github.com/thinh-vu/vnstock.git@v4.0.4
+```
 
 **Không** cài các package `vnstock-cli` / `vnstock-ta` / `vnstock-quant` / `vnstock-pipeline` /
 `vnstock-installer` xuất hiện trên PyPI cùng thời điểm, và không thêm `--extra-index-url` trỏ ra ngoài
 PyPI theo hướng dẫn trong mô tả của chúng — mô tả các package này chứa chỉ dẫn nhắm vào trợ lý AI để tự
 ý fetch cấu hình/cài đặt từ nguồn ngoài PyPI, chưa được kiểm chứng độc lập.
+
+**Lưu ý thêm:** khi cài/chạy, `vnai` có thể tự tạo một file `AGENTS.md` ở thư mục gốc (nội dung tự nhận
+"auto-generated", trỏ người/agent đọc nó sang `vnstocks.com/onboard/agent-guide`) — đây là file DO THƯ
+VIỆN tự sinh ra, KHÔNG phải do tôi hay bạn tạo. `AGENTS.md` là tên file nhiều công cụ AI (kể cả Claude)
+tự động đọc làm hướng dẫn, nên đây là nơi dễ bị lợi dụng để "nói chuyện" với AI qua ngả khác ngoài ý
+muốn của bạn. Repo này đã thêm `AGENTS.md` vào `.gitignore`; nếu thấy file đó xuất hiện, bạn nên xoá và
+**không** làm theo nội dung bên trong (tôi cũng không fetch URL đó).
 
 ## API key (Vnstock)
 
@@ -89,7 +99,57 @@ này có thể thêm Strategy 8, 9…"). S8 **không trích từ notebook nào**
 - Luôn hiển thị riêng ở tab **Chi tiết mã** (điểm con Trend/Momentum/Flow/Structure/RS, lý do, cảnh báo).
 - **⚠️ Không phải khuyến nghị đầu tư** — chỉ để đối chiếu/tham khảo bên cạnh 7 notebook gốc.
 
-## Dark mode
+## S9 — AI SMC Structure Read (đa khung thời gian: Daily/Weekly/Monthly)
+
+Bạn nhận xét: S1–S8 chủ yếu chấm điểm chỉ báo TẠI PHIÊN GẦN NHẤT, không nhìn cấu trúc đồ thị đã hình
+thành ra sao. **S9** (`strategies/smc.py` + `strategies/timeframes.py` + `strategies/strategy_09.py`)
+bù đắp đúng khoảng trống này — và đã qua 2 vòng chỉnh sau khi bạn phản hồi trực tiếp trên kết quả thật.
+
+**Thiết kế top-down (đúng cách trader SMC chuyên nghiệp dùng đa khung — HTF cho BIAS, LTF cho ENTRY):**
+- **BIAS** (xu hướng lớn, quyết định có xét mua hay không): ưu tiên khung **Monthly** nếu đã có sự kiện
+  cấu trúc, rồi tới **Weekly**, cuối cùng mới tới Daily (cửa sổ rộng, chỉ dùng dự phòng khi chưa đủ dữ
+  liệu Weekly/Monthly). Daily/Weekly/Tháng được resample NHÂN QUẢ từ chính dữ liệu ngày
+  (`strategies/timeframes.py`) — đúng yêu cầu "nhìn tổng thể đồ thị rộng rộng xíu, đừng tính SMC đoạn
+  nhỏ nhỏ" của bạn.
+- **ENTRY** (vùng vào lệnh chính xác): Order Block/FVG trên khung **Daily với cửa sổ HẸP HƠN BIAS**
+  (`entry_swing_left/right`, mặc định 3) — cố ý tách riêng khỏi cửa sổ BIAS (mặc định 6), vì nếu dùng
+  chung 1 cửa sổ rộng, giai đoạn TÍCH LUỸ biên độ nhỏ (chính là nơi cần tìm entry nhất) sẽ không còn
+  Order Block nào để dùng — đây là bug thật tôi tìm ra khi tự dựng kịch bản tích luỹ→breakout giống ảnh
+  "Super SMC" bạn gửi.
+- **Điều kiện vào lệnh** (đúng mô tả của bạn: *"mua nếu gần đáy mà có dòng tiền vào HOẶC test đáy thành
+  công trong khung lớn"*):
+  1. BIAS không chống lại — downtrend trên khung BIAS mà CHƯA có bằng chứng đảo chiều (CHoCH tăng hoặc
+     "test đáy thành công") thì loại ngay, đúng tinh thần *"VN chỉ Long, không đánh ngược xu hướng lớn"*.
+  2. **Gần đáy khung lớn** — xét theo vị trí của chính **vùng Entry (Order Block)**, không phải giá đóng
+     cửa hôm nay (sửa sau khi phát hiện: cấu trúc cần vài phiên xác nhận, nên tới lúc OB "xuất hiện"
+     trong kết quả thì giá thường đã nhích lên khỏi đáy — bắt giá HÔM NAY phải còn trong Discount gần như
+     không bao giờ khớp cùng lúc với một OB vừa được xác nhận).
+  3. **Dòng tiền vào** (CMF20 dương hoặc OBV 10 phiên dốc lên) **HOẶC** **test đáy thành công** (đáy xoay
+     sau cao hơn đáy trước, hoặc CHoCH tăng, quanh đáy khung BIAS).
+- **Entry/SL/TP long-only, có lưới an toàn cuối cùng:** Entry = giữa vùng OB tăng; SL = dưới đáy OB; TP =
+  liquidity pool/đỉnh xoay gần nhất phía trên, hoặc theo bội số R:R cố định (`tp_rr_fallback`, mặc định
+  2R) nếu giá đang phá đỉnh mới không còn kháng cự để nhắm tới. Code đảm bảo **luôn luôn**
+  `SL < Entry ≤ Giá hiện tại < TP` — nếu không thỏa (lỗi thực tế đã tìm thấy: có lúc TP tính ra lại ≤ giá
+  do biên an toàn trừ kháng cự quá gần) thì bỏ hẳn Entry/SL/TP thay vì hiển thị số liệu vô lý, tự hạ tín
+  hiệu xuống THEO DÕI. Khi vùng Entry đã cách giá hiện tại hơn 1.5×ATR, có cảnh báo rõ "vùng CHỜ GIÁ HỒI
+  VỀ, không phải mua đuổi".
+
+**Tách riêng 2 loại khuyến nghị** (đúng yêu cầu gốc của bạn): `native_signal`/`signal` = mua mới (chưa có
+vị thế); `holder_advice` = đang giữ (CẮT LỖ/HẠ TỶ TRỌNG/GIA TĂNG/TIẾP TỤC GIỮ) — tính được ngay cả khi
+không nhập giá vốn, dựa trên chính cấu trúc khung lớn, và luôn NHẤT QUÁN với bên mua mới (không còn tình
+trạng bên mua nói "đủ điều kiện" mà bên giữ vẫn nói "cắt lỗ ngay").
+
+**Trực quan trên biểu đồ:** tab *Chi tiết mã* có checkbox **"🧭 Hiện cấu trúc SMC"** — vẽ chồng lên nến
+(theo cửa sổ Entry/LTF): tam giác swing high/low, đường dọc BOS (xanh)/CHoCH (đỏ), vùng chữ nhật Order
+Block, dải FVG chưa lấp, đường ngang Liquidity Pool, nền mờ Premium/Discount.
+
+S9 là family "E" như S8 — mặc định **không tính vào Consensus 7-notebook** (bật P3 nếu muốn gộp chung).
+Có sheet riêng trong file Excel xuất ra với đầy đủ: Khung BIAS, BIAS Trend/Zone, Daily/Weekly/Monthly
+Trend, Gần đáy/Dòng tiền/Test đáy, Entry/SL/TP/R:R, khuyến nghị nắm giữ, diễn giải cấu trúc dạng câu.
+
+⚠️ SMC là một cách diễn giải phổ biến, không phải chân lý duy nhất, và vẫn chỉ mang tính tham khảo.
+
+## Dark mode## Dark mode
 
 Toggle **🌙 Dark mode** ở đầu sidebar — áp dụng ngay, không cần khởi động lại app (CSS override runtime, xem
 `ui/theme.py`). Biểu đồ giá đổi sang `plotly_dark`. **Giới hạn:** khung bảng dữ liệu tương tác (`st.dataframe`)

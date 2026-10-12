@@ -32,70 +32,12 @@ import pandas as pd
 
 from .base import (BaseStrategy, StrategyInfo, StrategyResult, ScanContext,
                    STRONG_BUY, BUY, WATCH, NONE, REDUCE, EXIT, FILTERED, NO_DATA, ERROR)
+from .ai_indicators import ema as _ema, rsi_wilder as _rsi_wilder, macd as _macd, atr as _atr, \
+    cmf as _cmf, stoch as _stoch, clip01 as _clip01, vnindex_regime as _regime
 from data.store import DataError, BENCHMARK
 
 AI_DISCLAIMER = ("Đây là bộ đọc kỹ thuật độc lập do trợ lý AI tự viết (không phải một trong 7 notebook gốc). "
                   "Chỉ mang tính tham khảo, KHÔNG PHẢI khuyến nghị đầu tư — tự chịu trách nhiệm với quyết định của bạn.")
-
-
-# ───────────────────────── indicator thuần (nhân quả, không nhìn tương lai) ─────────────────────────
-def _ema(s: pd.Series, span: int) -> pd.Series:
-    return s.ewm(span=span, adjust=False, min_periods=span).mean()
-
-
-def _rsi_wilder(close: pd.Series, period: int = 14) -> pd.Series:
-    d = close.diff()
-    up = d.clip(lower=0).ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
-    dn = (-d.clip(upper=0)).ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
-    rs = up / dn.replace(0, np.nan)
-    return 100 - 100 / (1 + rs)
-
-
-def _macd(close: pd.Series):
-    macd_line = _ema(close, 12) - _ema(close, 26)
-    signal = macd_line.ewm(span=9, adjust=False, min_periods=9).mean()
-    return macd_line, signal, macd_line - signal
-
-
-def _atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
-    pc = df["close"].shift(1)
-    tr = pd.concat([df["high"] - df["low"], (df["high"] - pc).abs(), (df["low"] - pc).abs()], axis=1).max(axis=1)
-    return tr.ewm(alpha=1 / period, adjust=False, min_periods=period).mean()
-
-
-def _cmf(df: pd.DataFrame, period: int = 20) -> pd.Series:
-    rng = (df["high"] - df["low"]).replace(0, np.nan)
-    mfv = ((df["close"] - df["low"]) - (df["high"] - df["close"])) / rng * df["volume"]
-    return mfv.rolling(period).sum() / df["volume"].rolling(period).sum()
-
-
-def _stoch(df: pd.DataFrame, period: int = 14, smooth: int = 3):
-    ll, hh = df["low"].rolling(period).min(), df["high"].rolling(period).max()
-    k = 100 * (df["close"] - ll) / (hh - ll).replace(0, np.nan)
-    return k.rolling(smooth).mean(), k.rolling(smooth).mean().rolling(smooth).mean()
-
-
-def _clip01(x: float, lo: float, hi: float) -> float:
-    """Quy x về [0,1] tuyến tính trong [lo,hi], kẹp hai đầu — dùng để chuyển chỉ báo thô thành điểm con."""
-    if pd.isna(x):
-        return 0.5
-    return float(np.clip((x - lo) / (hi - lo), 0.0, 1.0))
-
-
-def _regime(vni: pd.DataFrame) -> Dict[str, Any]:
-    c = vni["close"]
-    e50, e200 = _ema(c, 50), _ema(c, 200)
-    slope10 = (e50.iloc[-1] / e50.iloc[-11] - 1) * 100 if len(e50) > 11 and pd.notna(e50.iloc[-11]) else 0.0
-    above50, above200 = c.iloc[-1] > e50.iloc[-1], (pd.notna(e200.iloc[-1]) and c.iloc[-1] > e200.iloc[-1])
-    pts = int(above50) + int(above200) + int(slope10 > 0.3) + int(slope10 > -0.3) - int(slope10 < -0.3)
-    if pts >= 3 and above50:
-        label, mult = "BULL", 1.10
-    elif pts <= 0 and not above50:
-        label, mult = "BEAR", 0.85
-    else:
-        label, mult = "SIDEWAYS", 1.00
-    return {"regime": label, "mult": mult, "slope10_pct": round(slope10, 2),
-            "above_ema50": bool(above50), "above_ema200": bool(above200) if pd.notna(e200.iloc[-1]) else None}
 
 
 class Strategy08(BaseStrategy):

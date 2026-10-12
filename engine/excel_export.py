@@ -113,7 +113,35 @@ def _rows_for_s8(scan: ScanResult) -> List[Dict[str, Any]]:
     return rows
 
 
+def _rows_for_s9(scan: ScanResult) -> List[Dict[str, Any]]:
+    rows = []
+    for sym in scan.symbols:
+        r = scan.results[sym]["S9"]
+        x = r.extra or {}
+        row = {
+            "Mã": sym, "Trạng thái": r.status, "Tín hiệu": r.native_signal, "Tín hiệu chuẩn hoá": r.signal,
+            "Giá": r.price, "Khung BIAS": x.get("bias_timeframe"),
+            "BIAS Trend": x.get("bias_trend"), "BIAS Zone": x.get("bias_zone"), "BIAS Zone %": x.get("bias_zone_pct"),
+            "BIAS Range Low": x.get("bias_range_low"), "BIAS Range High": x.get("bias_range_high"),
+            "Daily Trend": x.get("daily_trend"), "Weekly Trend": x.get("weekly_trend"), "Monthly Trend": x.get("monthly_trend"),
+            "Gần đáy khung lớn": x.get("near_low"), "Dòng tiền vào": x.get("money_flow_in"), "Test đáy thành công": x.get("retest_ok"),
+            "CMF20": x.get("cmf20"), "OBV dốc lên 10 phiên": x.get("obv_rising_10d"),
+            "Sự kiện BIAS gần nhất": x.get("last_bias_event"), "Mức bị phá (BIAS)": x.get("last_bias_event_level"),
+            "Setup (OB/FVG)": r.setup, "Entry": r.entry, "SL": r.stop_loss, "TP": r.take_profit,
+            "R:R": r.risk_reward, "R:R basis": r.rr_basis,
+            "Khuyến nghị nắm giữ (holder)": r.holder_advice,
+            "Số OB chưa test (daily)": x.get("n_order_blocks_unmitigated"), "Số FVG chưa lấp (daily)": x.get("n_fvg_open"),
+            "Lý do": " | ".join(r.reasons) if r.reasons else "", "Cảnh báo": " | ".join(r.warnings) if r.warnings else "",
+            "Diễn giải cấu trúc": x.get("narrative"),
+            "Ghi chú": " | ".join(n for n in r.legacy_notes if n != x.get("narrative")) if r.legacy_notes else "",
+        }
+        rows.append({k: _flatten_value(v) for k, v in row.items()})
+    return rows
+
+
 def rows_for_strategy(scan: ScanResult, sid: str) -> List[Dict[str, Any]]:
+    if sid == "S9":
+        return _rows_for_s9(scan)
     if REGISTRY[sid].info.family == "E":
         return _rows_for_s8(scan)
     return _rows_for_notebook_strategy(scan, sid)
